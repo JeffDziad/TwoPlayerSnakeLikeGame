@@ -15,6 +15,7 @@ speed = 10
 
 pygame.init()
 screen = pygame.display.set_mode([GAME_WIDTH, WIN_HEIGHT])
+pygame.display.set_caption("Snake Battle")
 
 
 class Tray:
@@ -22,7 +23,7 @@ class Tray:
         # Draw horizontal divider
         pygame.draw.line(screen, "black", (0, GAME_HEIGHT), (GAME_WIDTH, GAME_HEIGHT))
         # Draw vertical divider
-        pygame.draw.line(screen, "black", ((COLS/2) * TILE_SIZE, GAME_HEIGHT), ((COLS/2) * TILE_SIZE, WIN_HEIGHT))
+        pygame.draw.line(screen, "black", ((COLS / 2) * TILE_SIZE, GAME_HEIGHT), ((COLS / 2) * TILE_SIZE, WIN_HEIGHT))
 
     def update(self):
         self.draw()
@@ -53,7 +54,7 @@ class Item_Manager:
         n = randrange(0, len(ITEM_POSSIBILITIES))
         i = ITEM_POSSIBILITIES[n]
         if i == "body-part":
-            self.addItem(BodyPart(randSpawnPos(), ))
+            self.addItem(BodyPartItem(randSpawnPos(), ))
 
     def addItem(self, item):
         self.items.append(item)
@@ -62,19 +63,31 @@ class Item_Manager:
         self.items.remove(item)
 
 
-class BodyPart:
+class BodyPartItem:
     def __init__(self, positionTup):
         self.position = positionTup
-        self.rect = pygame.Rect(self.position[0], self.position[1], TILE_SIZE, TILE_SIZE)
+        self.rect = pygame.Rect(self.position[0], self.position[1], TILE_SIZE + 1, TILE_SIZE + 1)
 
     def action(self, player):
-        print("BodyPart Action on: " + str(player.rect.x) + " - " + str(player.rect.y))
+        player.bodypart_queue += 1
 
     def update(self):
         self.draw()
 
     def draw(self):
         pygame.draw.rect(screen, "green", self.rect)
+
+
+class BodyPart:
+    def __init__(self, start_x, start_y):
+        self.rect = pygame.Rect(start_x, start_y, TILE_SIZE + 1, TILE_SIZE + 1)
+
+    def draw(self):
+        pygame.draw.rect(screen, '#CD3333', self.rect)
+
+    def update(self, x, y):
+        self.rect.x = x
+        self.rect.y = y
 
 
 class Player_Manager:
@@ -107,12 +120,16 @@ class Player:
         self.right_key = right_key
         self.rect = pygame.Rect(spawn_x, spawn_y, TILE_SIZE, TILE_SIZE)
         self.direction = direction
+        self.bodypart_queue = 0
 
     def draw(self):
         pygame.draw.rect(screen, self.color, self.rect)
 
-    def addPart(self):
-        self.parts.append()
+    def addNewParts(self, x, y):
+        if self.bodypart_queue > 0:
+            self.bodypart_queue -= 1
+            self.parts.append(BodyPart(x, y))
+            print(len(self.parts))
 
     def handleKeyEvent(self, event):
         if event.key == self.up_key:
@@ -148,10 +165,30 @@ class Player:
             elif y < 0:
                 y = GAME_HEIGHT
 
-            # Apply new position
+            temp_x, temp_y = self.rect.x, self.rect.y
+
+            # Apply new position to HEAD
             self.rect.update((x, y), (TILE_SIZE, TILE_SIZE))
 
+            # Add new parts
+            l = len(self.parts)
+            if l == 0:
+                self.addNewParts(temp_x, temp_y)
+            elif l >= 1:
+                for part in self.parts:
+                    n = self.parts[index - 1]
+                    if index == 0:
+                        part.update(temp_x, temp_y)
+                    else:
+                        p = self.parts[index - 1]
+                        part.update(n.rect.x, n.rect.y)
+                    index += 1
+                self.addNewParts(n.rect.x, n.rect.y)
+
         self.draw()
+
+        for part in self.parts:
+            part.draw()
 
 
 def randSpawnPos():
@@ -189,7 +226,6 @@ def tick():
     drawGrid()
     player_manager.update()
     item_manager.update(player_manager.players)
-    
 
 
 def init():
