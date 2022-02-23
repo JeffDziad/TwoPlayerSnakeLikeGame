@@ -1,17 +1,99 @@
 import pygame
 from random import randrange
 
-GAME_HEIGHT = 800
-GAME_WIDTH = 800
+GAME_HEIGHT = 1000
+GAME_WIDTH = 1000
 TILE_SIZE = 25
 COLS = int(GAME_WIDTH / TILE_SIZE)
 ROWS = int(GAME_HEIGHT / TILE_SIZE)
+TRAY_HEIGHT = 100
+WIN_HEIGHT = GAME_HEIGHT + TRAY_HEIGHT
+ITEM_POSSIBILITIES = ["body-part"]
 
 clock = pygame.time.Clock()
 speed = 10
 
 pygame.init()
-screen = pygame.display.set_mode([GAME_HEIGHT, GAME_WIDTH])
+screen = pygame.display.set_mode([GAME_WIDTH, WIN_HEIGHT])
+
+
+class Tray:
+    def draw(self):
+        # Draw horizontal divider
+        pygame.draw.line(screen, "black", (0, GAME_HEIGHT), (GAME_WIDTH, GAME_HEIGHT))
+        # Draw vertical divider
+        pygame.draw.line(screen, "black", ((COLS/2) * TILE_SIZE, GAME_HEIGHT), ((COLS/2) * TILE_SIZE, WIN_HEIGHT))
+
+    def update(self):
+        self.draw()
+
+
+class Item_Manager:
+    def __init__(self):
+        self.items = []
+        self.ITEM_LIMIT = 2
+
+    def update(self, players):
+        if len(self.items) < self.ITEM_LIMIT:
+            for x in range(0, self.ITEM_LIMIT - len(self.items)):
+                self.generateRandItem()
+        for item in self.items:
+            item.update()
+        for player in players:
+            self.checkPlayerCollision(player)
+
+    def checkPlayerCollision(self, player):
+        rect = player.rect
+        for item in self.items:
+            if rect.x == item.position[0] and rect.y == item.position[1]:
+                item.action(player)
+                self.removeItem(item)
+
+    def generateRandItem(self):
+        n = randrange(0, len(ITEM_POSSIBILITIES))
+        i = ITEM_POSSIBILITIES[n]
+        if i == "body-part":
+            self.addItem(BodyPart(randSpawnPos(), ))
+
+    def addItem(self, item):
+        self.items.append(item)
+
+    def removeItem(self, item):
+        self.items.remove(item)
+
+
+class BodyPart:
+    def __init__(self, positionTup):
+        self.position = positionTup
+        self.rect = pygame.Rect(self.position[0], self.position[1], TILE_SIZE, TILE_SIZE)
+
+    def action(self, player):
+        print("BodyPart Action on: " + str(player.rect.x) + " - " + str(player.rect.y))
+
+    def update(self):
+        self.draw()
+
+    def draw(self):
+        pygame.draw.rect(screen, "green", self.rect)
+
+
+class Player_Manager:
+    def __init__(self):
+        self.players = []
+
+    def addPlayer(self, spawn_x, spawn_y, up_key, down_key, left_key, right_key, color="blue", direction="right"):
+        self.players.append(Player(spawn_x, spawn_y, up_key, down_key, left_key, right_key, color, direction))
+
+    def removePlayer(self, player):
+        self.players.remove(player)
+
+    def update(self):
+        for player in self.players:
+            player.update()
+
+    def keyEvent(self, event):
+        for player in self.players:
+            player.handleKeyEvent(event)
 
 
 class Player:
@@ -23,7 +105,6 @@ class Player:
         self.down_key = down_key
         self.left_key = left_key
         self.right_key = right_key
-
         self.rect = pygame.Rect(spawn_x, spawn_y, TILE_SIZE, TILE_SIZE)
         self.direction = direction
 
@@ -34,13 +115,13 @@ class Player:
         self.parts.append()
 
     def handleKeyEvent(self, event):
-        if event.key == pygame.K_UP:
+        if event.key == self.up_key:
             self.direction = "up"
-        elif event.key == pygame.K_DOWN:
+        elif event.key == self.down_key:
             self.direction = "down"
-        elif event.key == pygame.K_LEFT:
+        elif event.key == self.left_key:
             self.direction = "left"
-        elif event.key == pygame.K_RIGHT:
+        elif event.key == self.right_key:
             self.direction = "right"
 
     def update(self):
@@ -59,17 +140,13 @@ class Player:
 
             # Test new position for collisions
             if x + TILE_SIZE > GAME_WIDTH:
-                x -= TILE_SIZE
-                self.alive = False
+                x = 0
             elif x < 0:
-                x += TILE_SIZE
-                self.alive = False
+                x = GAME_WIDTH
             elif y + TILE_SIZE > GAME_HEIGHT:
-                y -= TILE_SIZE
-                self.alive = False
+                y = 0
             elif y < 0:
-                y += TILE_SIZE
-                self.alive = False
+                y = GAME_HEIGHT
 
             # Apply new position
             self.rect.update((x, y), (TILE_SIZE, TILE_SIZE))
@@ -83,14 +160,6 @@ def randSpawnPos():
     while not found:
         found = True
         (x, y) = round(randrange(0, COLS)) * TILE_SIZE, round(randrange(0, ROWS)) * TILE_SIZE
-        # if head.rect.x == x or head.rect.y == y:
-        #     print("Head Convergence")
-        #     found = False
-        # for apple in apples:
-        #     if apple.position == (x, y):
-        #         print("Apple Convergence")
-        #         found = False
-    # Test position for collisions to prevent overlap
     return x, y
 
 
@@ -109,21 +178,27 @@ def drawGrid():
         pygame.draw.line(screen, "black", (x1, y1), (x2, y2))
 
 
-players = []
+item_manager = Item_Manager()
+player_manager = Player_Manager()
+tray = Tray()
 
 
 def tick():
     screen.fill((255, 255, 255))
+    tray.update()
     drawGrid()
-    for player in players:
-        player.update()
+    player_manager.update()
+    item_manager.update(player_manager.players)
+    
 
 
 def init():
+    # Make players
     x, y = randSpawnPos()
-    players.append(Player(x, y, pygame.K_UP, pygame.K_DOWN, pygame.K_LEFT, pygame.K_RIGHT, "red"))
+    player_manager.addPlayer(x, y, pygame.K_UP, pygame.K_DOWN, pygame.K_LEFT, pygame.K_RIGHT, "red")
     x, y = randSpawnPos()
-    players.append(Player(x, y, pygame.K_w, pygame.K_s, pygame.K_a, pygame.K_d, "red"))
+    player_manager.addPlayer(x, y, pygame.K_w, pygame.K_s, pygame.K_a, pygame.K_d, "blue")
+
     running = True
     while running:
         # Events
@@ -131,8 +206,7 @@ def init():
             if event.type == pygame.QUIT:
                 running = False
             if event.type == pygame.KEYDOWN:
-                for player in players:
-                    player.handleKeyEvent(event)
+                player_manager.keyEvent(event)
 
         # Content Update
         tick()
