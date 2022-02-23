@@ -175,6 +175,8 @@ class Player:
             if l == 0:
                 self.addNewParts(temp_x, temp_y)
             elif l >= 1:
+                index = 0
+                n = 0
                 for part in self.parts:
                     n = self.parts[index - 1]
                     if index == 0:
